@@ -48,6 +48,9 @@ starts `error:`, send me the log.
   happens, send me the log and your list of addons.
 - A stance change (druid form, rogue stealth, warrior stance): the first row should follow it.
 - A ground spell if you have one: the right stick aims, South places, East cancels.
+- `/controller style xiv`: the cross becomes three sets, LT's on the left, RT's on the right and the buttons' own in
+  the middle. Hold LT, then RT, then both: the held set grows and the others fade, and nothing moves sideways. Does it
+  fit on screen? `/controller style wow` puts the cross back.
 
 ## 5. Targeting
 

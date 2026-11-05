@@ -44,6 +44,18 @@ function api.Rest()
 	N.PostCommand("rest")
 end
 
+-- The cross's style: "wow" (WoW Forever's) or "xiv" (a cross hotbar, every trigger's set in sight).
+function api.GetStyle()
+	return G.Style()
+end
+
+-- Picks the cross's style, "wow" or "xiv"; saved like /controller style. Anything else is ignored.
+function api.SetStyle(name)
+	if name == "wow" or name == "xiv" then
+		N.PostCommand("quiet style " .. name)
+	end
+end
+
 -- True while the addon shows the abilities on its own bars: the controller's own cross of abilities stays hidden.
 -- Lasts until a reload of the interface.
 function api.SetBarsShown(shown)

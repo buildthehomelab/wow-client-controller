@@ -29,8 +29,15 @@ cancels. Windows that open take the cursor to their first button, except in comb
 so your abilities stay yours. Need-or-greed rolls always wait for Back. A harmful spell with no enemy targeted picks the
 nearest one first.
 
-`/controller` in chat lists the settings: `on`, `off`, `camera`, `cursor`, `invert`, `hud`, `autotarget`, `autocursor`,
-`rumble`, `hold`. They save to `WTF\Controller.txt`.
+`/controller` in chat lists the settings: `on`, `off`, `camera`, `cursor`, `invert`, `hud`, `style`, `autotarget`,
+`autocursor`, `rumble`, `hold`. They save to `WTF\Controller.txt`.
+
+The cross of abilities comes in two styles, `/controller style wow` or `/controller style xiv`:
+
+- `wow` (the default) is WoW Forever's: the D-pad's four and the face buttons' four, showing what they do on the
+  triggers being held.
+- `xiv` is a cross hotbar: LT's set on the left, RT's on the right and the buttons' own in the middle, all in sight.
+  The set being held is big and bright and the others small and faint; both triggers bring their set to the middle.
 
 Keyboard and mouse keep working alongside it. Without a controller nothing shows and nothing changes.
 
@@ -76,13 +83,15 @@ way under other names (LuxVelum's `version.dll`, AwesomeWotlk's `dinput8.dll`).
 ## For addon authors
 
 An action bar addon can show the controller's buttons on its own bars through `C_Controller`. It's created after
-addons load, so look it up when you need it, not at load time. It's read only, apart from two requests.
+addons load, so look it up when you need it, not at load time. It's read only, apart from three requests.
 
 | Function | Returns or does |
 | --- | --- |
 | `C_Controller.GetState()` | `connected, active, family, layer, mode`. `active` means in use: a button pressed since it was plugged in or last rested. `family` is `"ltr"` (Xbox), `"shp"` (PlayStation), `"rev"` (Nintendo) or `"gen"`. `layer` is the triggers held: `"BASE"`, `"LT"`, `"RT"` or `"BOTH"`. `mode` is `"world"`, `"cursor"` or `"aim"` |
 | `C_Controller.GetBinding(bar, slot)` | The button (`"EAST"`, `"UP"`...) and layer that use slot 1-12 of bar `"main"`, `"bottomleft"` or `"bottomright"`. Nothing for an unused slot |
 | `C_Controller.GetGlyph(button)` | Texture path and `left, right, top, bottom` coordinates of a button's picture for the controller in use |
+| `C_Controller.GetStyle()` | `"wow"` or `"xiv"`, the style of the cross |
+| `C_Controller.SetStyle(name)` | Picks the cross's style, `"wow"` or `"xiv"`, saved like `/controller style` |
 | `C_Controller.Rest()` | Back to keyboard and mouse until the next controller button press |
 | `C_Controller.SetBarsShown(true)` | Your bars show the abilities, so the controller hides its own cross. Lasts until a UI reload |
 
