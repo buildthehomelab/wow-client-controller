@@ -1,0 +1,84 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Test and build the DLL
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Install Lua and Zig
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q lua5.1 luajit
+          curl -sSfLO https://ziglang.org/download/0.17.1/zig-x86_64-linux-0.17.1.tar.xz
+          echo "3581863e3cbcfd0fce0efc682ce7e9e93da96668a977791d356a26d2a7e9b17a  zig-x86_64-linux-0.17.1.tar.xz" | sha256sum -c
+          tar xf zig-x86_64-linux-0.17.1.tar.xz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/zig-x86_64-linux-0.17.1" >> "$GITHUB_PATH"
+
+      - name: Logic tests
+        run: cc -Isrc tests/test_logic.c src/logic.c -lm -o "$RUNNER_TEMP/test_logic" && "$RUNNER_TEMP/test_logic"
+
+      - name: UI tests
+        run: luajit tests/test_ui.lua
+
+      - name: Build
+        run: LUAC=luac5.1 ./build.sh
+
+      - name: Package
+        run: |
+          mkdir -p package
+          cp out/msacm32.dll out/SDL3.dll README.md TEST-STEPS.md LICENSE third_party/SDL3-LICENSE.txt package/
+          {
+            echo "Commit: $GITHUB_SHA"
+            echo "Build: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            (cd out && sha256sum msacm32.dll SDL3.dll)
+          } > package/BUILD.txt
+          cat package/BUILD.txt
+
+      - name: Upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: wow-client-controller-${{ github.sha }}
+          path: package/
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Publish the release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download the build
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
+        with:
+          name: wow-client-controller-${{ github.sha }}
+          path: package
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          (cd package && zip -9 "../wow-client-controller-$TAG.zip" *)
+          sha256sum "wow-client-controller-$TAG.zip" > "wow-client-controller-$TAG.zip.sha256"
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" \
+            --notes-file package/BUILD.txt \
+            "wow-client-controller-$TAG.zip" "wow-client-controller-$TAG.zip.sha256"
