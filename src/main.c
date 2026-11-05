@@ -26,6 +26,7 @@ EMBED(lua_radial, "lua/radial.lua")
 EMBED(lua_cursor, "lua/cursor.lua")
 EMBED(lua_hud, "lua/hud.lua")
 EMBED(lua_world, "lua/world.lua")
+EMBED(lua_hold, "lua/hold.lua")
 EMBED(lua_glue, "lua/glue.lua")
 EMBED(lua_api, "lua/api.lua")
 EMBED(art_ltr, "art/ltr.blp")
@@ -434,6 +435,29 @@ static int l_next_command(lua_State *L)
     return 1;
 }
 
+/* KeyHeld(name): whether that key is down right now, by the client's name for it with no modifiers ("Q", "F5",
+   "BUTTON4"). Only for the game in front, so a key held in another window never casts. Read from Windows, not from
+   the client, which only says when a binding starts and ends. */
+static int l_key_held(lua_State *L)
+{
+    const char *name = lua_tolstring(L, 1, NULL);
+    int vk;
+    if (!name || !game_in_front())
+        return 0;
+    vk = logic_key_vk(name);
+    if (vk < 0) {
+        SHORT scan = VkKeyScanA((CHAR)-vk);
+        /* No key makes it, or only with modifiers the binding doesn't name. */
+        if (scan == -1 || (scan & 0xFF00))
+            return 0;
+        vk = scan & 0xFF;
+    }
+    if (vk == 0)
+        return 0;
+    lua_pushboolean(L, (GetAsyncKeyState(vk) & 0x8000) != 0);
+    return 1;
+}
+
 static int l_rumble(lua_State *L)
 {
     pad_rumble((unsigned short)(lua_tonumber(L, 1) * 65535.0), (unsigned short)(lua_tonumber(L, 2) * 65535.0),
@@ -517,6 +541,7 @@ static const struct { const char *name; lua_CFunction function; } NATIVE_FUNCTIO
     { "Global", l_global },
     { "PostCommand", l_post_command },
     { "NextCommand", l_next_command },
+    { "KeyHeld", l_key_held },
     { "Rumble", l_rumble },
     { "Log", l_log },
     { "LoadSettings", l_load_settings },
@@ -590,6 +615,7 @@ static void start_ui(lua_State *L, int in_game)
         run_file(L, lua_cursor, lua_cursor_end, "@Controller\\cursor.lua");
         run_file(L, lua_hud, lua_hud_end, "@Controller\\hud.lua");
         run_file(L, lua_world, lua_world_end, "@Controller\\world.lua");
+        run_file(L, lua_hold, lua_hold_end, "@Controller\\hold.lua");
         run_file(L, lua_api, lua_api_end, "@Controller\\api.lua");
     } else {
         run_file(L, lua_glue, lua_glue_end, "@Controller\\glue.lua");

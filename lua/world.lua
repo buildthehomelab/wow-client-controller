@@ -312,8 +312,12 @@ G.handlers.world = function(name, down)
 	elseif name == "SOUTH" and G.Layer() == "BASE" then
 		SouthDown()
 	else
-		local slot = G.ActionFor(name)
-		if slot then G.UseSlot(slot) end
+		local layer = G.Layer()
+		local slot = G.ActionFor(name, layer)
+		if slot then
+			G.UseSlot(slot)
+			if G.HoldPress then G.HoldPress(name, layer) end
+		end
 	end
 end
 

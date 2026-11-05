@@ -22,6 +22,12 @@ int logic_trigger_held(int was_held, float value);
 /* Whole pixels to move this tick. The fraction carries over in *carry, so slow stick movement isn't lost. */
 int logic_mouse_step(float stick, float pixels_per_second, float seconds, float *carry);
 
+/* The Windows virtual key for a key's name as the client writes it in bindings, with no modifiers: "Q", "7", "F5",
+   "NUMPAD3", "BUTTON4", "PAGEUP". 0 for names it doesn't know, and for the mouse wheel and left and right buttons, which
+   can't be held for casting. A single other character ("-", "[") comes back as minus that character: which key makes it
+   depends on the keyboard layout, so Windows has to be asked. */
+int logic_key_vk(const char *name);
+
 #define EVENT_QUEUE_SIZE 128
 
 struct PadEvent {

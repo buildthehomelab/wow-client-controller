@@ -53,6 +53,12 @@ function FrameMeta.GetCenter(self) return self.cx, self.cy end
 function FrameMeta.GetFrameStrata() return "DIALOG" end
 function FrameMeta.CreateTexture(self) return setmetatable({ scripts = {}, shown = true }, FrameMeta) end
 function FrameMeta.CreateFontString(self) return setmetatable({ scripts = {}, shown = true }, FrameMeta) end
+function FrameMeta.RegisterEvent(self, event)
+	if not rawget(self, "events") then rawset(self, "events", {}) end
+	self.events[event] = true
+end
+function FrameMeta.GetButtonState(self) return rawget(self, "state") or "NORMAL" end
+function FrameMeta.SetButtonState(self, state) self.state = state end
 function FrameMeta.GetChildren() return end
 function FrameMeta.GetRegions() return end
 local function newFrame()
@@ -61,7 +67,15 @@ local function newFrame()
 	return f
 end
 
-_G.CreateFrame = function() return newFrame() end
+_G.CreateFrame = function(kind, name, parent, template)
+	local f = newFrame()
+	rawset(f, "frameName", name)
+	rawset(f, "template", template)
+	return f
+end
+function FrameMeta.GetName(self) return rawget(self, "frameName") end
+function FrameMeta.SetChecked(self, on) rawset(self, "checked", on and true or false) end
+function FrameMeta.GetChecked(self) return rawget(self, "checked") end
 _G.UIParent = newFrame()
 _G.WorldFrame = newFrame()
 _G.GetScreenWidth = function() return 1000 end
@@ -78,10 +92,18 @@ _G.GetBonusBarOffset = function() return game.offset end
 _G.NUM_ACTIONBAR_PAGES, _G.NUM_ACTIONBAR_BUTTONS, _G.VEHICLE_MAX_ACTIONBUTTONS = 6, 12, 6
 _G.BOOKTYPE_SPELL = "spell"
 _G.HasAction = function() return true end
-_G.UseAction = function(slot) record("UseAction", slot) if game.castTargets then game.targeting = true end end
+_G.UseAction = function(slot, unit)
+	record("UseAction", slot, unit)
+	if game.castTargets then game.targeting = true end
+	-- For holding: the global cooldown the use starts.
+	if game.gcd then game.cooldown[slot] = game.now + game.gcd end
+end
 _G.SpellIsTargeting = function() return game.targeting end
 _G.SpellStopTargeting = function() record("SpellStopTargeting") game.targeting = false end
-_G.GetActionInfo = function(slot) return game.actions[slot] and "spell", game.actions[slot] end
+_G.GetActionInfo = function(slot)
+	if game.actions[slot] == "mount" then return "companion", 1, "MOUNT" end
+	return game.actions[slot] and "spell", game.actions[slot]
+end
 _G.IsHarmfulSpell = function(id) return id == "fireball" end
 _G.UnitExists = function(u) return u == "player" or (u == "target" and game.target) or (u == "party1" and game.party) end
 _G.UnitCanAttack = function() return game.target == "enemy" end
@@ -106,7 +128,11 @@ _G.CursorHasSpell = function() return false end
 _G.GetActionTexture = function() return "icon" end
 _G.IsUsableAction = function() return true end
 _G.IsActionInRange = function() return 1 end
-_G.GetActionCooldown = function() return 0, 0, 1 end
+_G.GetActionCooldown = function(slot)
+	local ready = game.cooldown and game.cooldown[slot]
+	if ready and ready > game.now then return ready - 1.5, 1.5, 1 end
+	return 0, 0, 1
+end
 _G.GetActionCount = function() return 0 end
 _G.IsConsumableAction = function() return false end
 _G.IsStackableAction = function() return false end
@@ -134,6 +160,49 @@ _G.StaticPopup1 = newFrame()
 _G.StaticPopup1.shown = false
 _G.MAINMENU_BUTTON = "Menu"
 
+-- For holding: time, keys, bindings, cooldowns and the bar buttons a binding clicks.
+game.now, game.keys, game.mods, game.bindings, game.other = 100, {}, {}, {}, {}
+game.cooldown, game.current, game.repeating, game.override, game.modified = {}, {}, {}, {}, {}
+_G.IsModifiedClick = function(what) return game.modified[what] end
+_G.GetTime = function() return game.now end
+_G.IsShiftKeyDown = function() return game.mods.shift end
+_G.IsControlKeyDown = function() return game.mods.ctrl end
+_G.IsAltKeyDown = function() return game.mods.alt end
+_G.GetBindingKey = function(command) return unpack(game.bindings[command] or {}) end
+_G.GetBindingAction = function(key, checkOverride)
+	if checkOverride and game.override[key] then return game.override[key] end
+	if game.other[key] then return game.other[key] end
+	for command, keys in pairs(game.bindings) do
+		for _, k in ipairs(keys) do if k == key then return command end end
+	end
+	return ""
+end
+_G.GetCurrentKeyBoardFocus = function() return game.focus end
+_G.IsAttackAction = function(slot) return game.repeating[slot] == "attack" end
+_G.IsAutoRepeatAction = function(slot) return game.repeating[slot] == "auto" end
+_G.IsCurrentAction = function(slot) return game.current[slot] end
+_G.UnitCastingInfo = function() return game.casting end
+_G.UnitChannelInfo = function() return nil end
+_G.VehicleMenuBar = newFrame()
+_G.VehicleMenuBar.shown = false
+_G.BonusActionBarFrame = newFrame()
+_G.BonusActionBarFrame.shown = false
+for i = 1, 12 do
+	_G["ActionButton" .. i] = newFrame()
+	_G["ActionButton" .. i].action = i
+	_G["MultiBarBottomLeftButton" .. i] = newFrame()
+	_G["MultiBarBottomLeftButton" .. i].action = 60 + i
+end
+
+-- Interface Options, Combat.
+local optionControls = {}
+_G.CONTROLTYPE_CHECKBOX = 1
+_G.InterfaceOptionsCombatPanel = newFrame()
+_G.InterfaceOptionsCombatPanelSelfCastKeyDropDown = newFrame()
+_G.BlizzardOptionsPanel_RegisterControl = function(control, panel)
+	optionControls[#optionControls + 1] = { control = control, panel = panel }
+end
+
 -- ---- pretend controller --------------------------------------------------------------------------------------
 local pad = { replaced = {}, connected = true, family = "ltr", lx = 0, ly = 0, rx = 0, ry = 0, front = true, queue = {}, commands = {}, scan = nil }
 local driver
@@ -156,6 +225,7 @@ local N = {
 	ScanInteract = function() if pad.scan then return pad.scan, 1, 2 end end,
 	Interact = function(hi, lo) record("Interact", hi, lo) end,
 	Rumble = function() record("Rumble") end,
+	KeyHeld = function(name) return pad.front and game.keys[name] or false end,
 	Call = function(func, ...) return func(...) end,
 	Global = function(name) return _G[name], not pad.replaced[name] end,
 	InWorld = function() return not game.loading end,
@@ -170,7 +240,7 @@ pad.settings = "camera=500\nbogus=3\n"
 local G = {}
 local before = {}
 for key in pairs(_G) do before[key] = true end
-for _, file in ipairs { "atlas", "core", "actions", "radial", "cursor", "hud", "world", "api" } do
+for _, file in ipairs { "atlas", "core", "actions", "radial", "cursor", "hud", "world", "hold", "api" } do
 	assert(loadfile("lua/" .. file .. ".lua"))(N, G)
 end
 local Atlas = G.Atlas
@@ -182,6 +252,7 @@ check(driver ~= nil, "the frame function goes to the DLL, not onto a frame anyon
 check(#onUpdates == 0, "no OnUpdate scripts")
 
 local function frame(seconds)
+	game.now = game.now + (seconds or 0.016)
 	driver(seconds or 0.016)
 end
 local function press(name) pad.queue[#pad.queue + 1] = { name, true } frame() end
@@ -522,7 +593,10 @@ frame()
 
 -- ---- loading screens ----------------------------------------------------------------------------------------
 local eventFrame
-for _, f in ipairs(frames) do if f.scripts.OnEvent then eventFrame = f end end
+for _, f in ipairs(frames) do
+	local registered = rawget(f, "events")
+	if f.scripts.OnEvent and registered and registered.PLAYER_LEAVING_WORLD then eventFrame = f end
+end
 check(eventFrame ~= nil, "listens for loading screens")
 frame()
 clear() pad.ly = 0.9 frame()
@@ -658,6 +732,307 @@ do
 	check(G.ownBars and G.settings.camera == 650, "an addon request and a slash command in one frame both arrive")
 	api.SetBarsShown(false)
 	frame()
+end
+
+-- ---- holding to keep casting ---------------------------------------------------------------------------------
+do
+	local function wait(seconds)
+		for _ = 1, math.floor(seconds / 0.05 + 0.5) do frame(0.05) end
+	end
+	-- What the client's binding does with a bar key: marks the button on the way down, clicks it on the way up if it's
+	-- still marked.
+	local function keyDown(key, button)
+		game.keys[key] = true
+		if button:GetButtonState() == "NORMAL" then rawset(button, "state", "PUSHED") end
+		frame()
+	end
+	local function keyUp(key, button)
+		game.keys[key] = nil
+		local clicked = button:GetButtonState() == "PUSHED"
+		rawset(button, "state", "NORMAL")
+		frame()
+		return clicked
+	end
+	local function castAt(slot) return count("UseAction") > 0 and called("UseAction", slot) end
+	local events
+	for _, f in ipairs(frames) do
+		local registered = rawget(f, "events")
+		if registered and registered.UI_ERROR_MESSAGE then events = f end
+	end
+	check(events ~= nil, "hold listens for the game's error messages")
+
+	local button3 = _G.ActionButton3
+	game.bindings.ACTIONBUTTON3 = { "3" }
+	game.bindings.MULTIACTIONBAR1BUTTON2 = { "SHIFT-E" }
+	game.bindings.ACTIONBUTTON4 = { "E" }
+	events.scripts.OnEvent(events, "UPDATE_BINDINGS")
+	check(G.settings.hold == 0, "hold is off unless asked for")
+	game.gcd = 1.5
+
+	clear() keyDown("3", button3) wait(1)
+	check(not called("UseAction"), "off: holding a key does nothing of ours")
+	check(keyUp("3", button3), "off: the client still casts on the way up")
+
+	SlashCmdList.GAMEPAD("hold 1")
+	frame()
+	check(G.settings.hold == 1 and pad.saved:find("hold=1"), "/controller hold 1 turns it on and saves it")
+
+	clear() keyDown("3", button3) wait(0.1)
+	check(not called("UseAction"), "a tap isn't a hold")
+	check(keyUp("3", button3), "a tap is left to the client")
+
+	clear() keyDown("3", button3) wait(0.3)
+	check(count("UseAction") == 1 and castAt(3), "held: used once it counts as holding")
+	check(button3:GetButtonState() == "NORMAL", "and the button is unmarked")
+	clear() wait(1)
+	check(not called("UseAction"), "waits for the cooldown")
+	wait(0.6)
+	check(count("UseAction") == 1 and castAt(3), "used again when it's ready")
+	game.gcd = nil
+	wait(1.6)
+	clear() wait(0.5)
+	check(not called("UseAction"), "a use that showed no cooldown, cast or 'on' waits a second")
+	wait(0.6)
+	check(count("UseAction") == 1, "then tries again")
+	clear() wait(0.3)
+	check(count("UseAction") == 0, "never faster than that")
+	game.gcd = 1.5
+	clear()
+	check(not keyUp("3", button3), "letting go doesn't cast once more")
+	wait(2)
+	check(not called("UseAction"), "let go: stops")
+
+	-- Errors slow it down, however long the server takes to send them.
+	game.gcd = 0.5
+	clear() keyDown("3", button3) wait(0.3)
+	check(count("UseAction") == 1, "held again")
+	wait(0.4)
+	events.scripts.OnEvent(events, "UI_ERROR_MESSAGE")
+	clear() wait(0.5)
+	check(not called("UseAction"), "an error after a try waits longer than the cooldown")
+	wait(0.6)
+	check(called("UseAction"), "then tries again")
+	keyUp("3", button3)
+	game.gcd = 1.5
+	wait(2)
+
+	-- Things that must never be used twice.
+	for _, case in ipairs { { "current", true, "something already on" }, { "repeating", "auto", "Auto Shot" },
+		{ "repeating", "attack", "auto attack" }, { "actions", "mount", "a mount" } } do
+		game[case[1]][3] = case[2]
+		clear() keyDown("3", button3) wait(1)
+		check(not called("UseAction"), "never repeats " .. case[3])
+		keyUp("3", button3)
+		game[case[1]][3] = nil
+	end
+	game.casting = "Frostbolt"
+	clear() keyDown("3", button3) wait(1)
+	check(not called("UseAction"), "never cuts into another cast")
+	keyUp("3", button3)
+	game.casting = nil
+	wait(2)
+
+	-- Modifiers.
+	game.mods.shift = true
+	clear() keyDown("E", _G.MultiBarBottomLeftButton2) wait(0.3)
+	check(castAt(62), "Shift-E uses its own binding, bottom left 2")
+	keyUp("E", _G.MultiBarBottomLeftButton2)
+	game.bindings.MULTIACTIONBAR1BUTTON2 = nil
+	events.scripts.OnEvent(events, "UPDATE_BINDINGS")
+	wait(2)
+	clear() keyDown("E", _G.ActionButton4) wait(0.3)
+	check(castAt(4), "Shift-E with nothing of its own uses E, as the client does")
+	keyUp("E", _G.ActionButton4)
+	wait(2)
+	game.other["SHIFT-E"] = "TOGGLEBAG1"
+	clear() keyDown("E", _G.ActionButton4) wait(0.5)
+	check(not called("UseAction"), "but not when Shift-E is bound to something else")
+	keyUp("E", _G.ActionButton4)
+	game.other["SHIFT-E"] = nil
+	game.mods.shift = nil
+
+	game.mods.alt, game.modified.SELFCAST = true, true
+	clear() keyDown("3", button3) wait(0.3)
+	local unit
+	for _, c in ipairs(calls) do if c[1] == "UseAction" then unit = c[3] end end
+	check(castAt(3) and unit == "player", "Alt with a plain key's binding casts on yourself, as the button would")
+	keyUp("3", button3)
+	game.mods.alt, game.modified.SELFCAST = nil, nil
+	wait(2)
+
+	clear() keyDown("3", button3) wait(0.2)
+	game.mods.shift = true
+	wait(0.2)
+	game.mods.shift = nil
+	wait(0.2)
+	check(not called("UseAction"), "a modifier changing mid-hold starts the hold over")
+	keyUp("3", button3)
+
+	-- Another addon's bars took the key over.
+	game.override["3"] = "CLICK BT4Button3:LeftButton"
+	clear() keyDown("3", button3) wait(1)
+	check(not called("UseAction"), "a key another bar addon took over is left alone")
+	keyUp("3", button3)
+	game.override["3"] = "CLICK DragonUI_KeyPressButton_3:LeftButton"
+	clear() keyDown("3", button3) wait(0.3)
+	check(castAt(3), "DragonUI's key-down casting clicks the same button, so it's held as usual")
+	keyUp("3", button3)
+	game.override["3"] = nil
+	wait(2)
+
+	-- Where a key must do nothing.
+	game.focus = {}
+	clear() keyDown("3", button3) wait(1)
+	check(not called("UseAction"), "typing in chat")
+	keyUp("3", button3)
+	game.focus = nil
+	clear() keyDown("3", button3) wait(0.3)
+	check(count("UseAction") == 1, "held")
+	game.focus = {}
+	clear() wait(2)
+	check(not called("UseAction"), "chat opened mid-hold: stops")
+	game.focus = nil
+	keyUp("3", button3)
+	pad.front = false
+	clear() keyDown("3", button3) wait(1)
+	check(not called("UseAction"), "game not in front")
+	keyUp("3", button3)
+	pad.front = true
+
+	_G.BonusActionBarFrame.shown = true
+	_G.BonusActionButton3 = newFrame()
+	_G.BonusActionButton3.action = 75
+	clear() keyDown("3", _G.BonusActionButton3) wait(0.3)
+	check(castAt(75), "a stance bar: the button the binding clicks, with its slot")
+	keyUp("3", _G.BonusActionButton3)
+	_G.BonusActionBarFrame.shown = false
+	wait(2)
+
+	-- The controller.
+	G.SetMode("world")
+	clear() press("EAST")
+	check(count("UseAction") == 1 and castAt(1), "a controller press uses it at once")
+	wait(1)
+	check(count("UseAction") == 1, "held: waits for the cooldown")
+	wait(0.6)
+	check(count("UseAction") == 2, "then again")
+	release("EAST")
+	clear() wait(2)
+	check(not called("UseAction"), "let go: stops")
+
+	press("LT") press("EAST") release("LT")
+	clear() wait(1.6)
+	check(castAt(9) and not called("UseAction", 1), "the layer it was pressed on stays, trigger let go or not")
+	release("EAST")
+	wait(2)
+
+	SlashCmdList.GAMEPAD("hold 0")
+	frame()
+	clear() press("EAST") wait(1)
+	check(count("UseAction") == 1, "off: a held controller button is used once")
+	release("EAST")
+	game.gcd = nil
+end
+
+-- ---- the setting in Interface Options ---------------------------------------------------------------------------
+do
+	check(#optionControls == 1 and optionControls[1].panel == _G.InterfaceOptionsCombatPanel,
+		"hold has a box in Interface, Combat")
+	local box = optionControls[1].control
+	check(box.template == "InterfaceOptionsCheckButtonTemplate" and box.type == CONTROLTYPE_CHECKBOX, "a stock checkbox")
+	check(box.frameName ~= nil, "named, so the template's label exists")
+	check(box.value == "0" and box:GetValue() == "0" and box.defaultValue == "0", "off, and off by default")
+
+	local function wait(seconds)
+		for _ = 1, math.floor(seconds / 0.05 + 0.5) do frame(0.05) end
+	end
+	-- Copies of the stock calls (InterfaceOptionsPanels.lua, OptionsPanelTemplates.lua), branch for branch.
+	local function click(on) -- InterfaceOptionsPanel_CheckButton_Update
+		box:SetChecked(on)
+		box.value = on and "1" or "0"
+		if box.setFunc then box.setFunc(box.value) end
+	end
+	local function open() -- InterfaceOptionsPanel_Refresh: BlizzardOptionsPanel_CheckButton_Refresh, then oldValue
+		local value = tostring(box:GetValue())
+		box:SetChecked(value == "1")
+		box.oldValue = box.value
+	end
+	local function cancel() -- InterfaceOptionsPanel_Cancel
+		if box.oldValue then
+			if box.value and box.value ~= box.oldValue then box:SetValue(box.oldValue) end
+		elseif box.value then
+			if box:GetValue() ~= box.value then box:SetValue(box.value) end
+		end
+		if box.setFunc then box.setFunc(box:GetValue()) end
+	end
+	local function okay() -- BlizzardOptionsPanel_OkayControl, no newValue
+		if box.value and box:GetValue() ~= box.value then box:SetValue(box.value) end
+	end
+	local function defaults() -- InterfaceOptionsPanel_Default
+		if box.defaultValue and box.value ~= box.defaultValue then
+			box:SetValue(box.defaultValue)
+			box.value = box.defaultValue
+		end
+		if box.setFunc then box.setFunc(box:GetValue()) end
+	end
+
+	open()
+	check(box:GetChecked() == false, "opens unticked")
+	clear() click(true)
+	frame()
+	check(G.settings.hold == 1 and pad.saved:find("hold=1"), "ticking the box turns it on and saves it")
+	check(not called("say"), "without a chat message")
+	okay()
+	frame()
+	check(G.settings.hold == 1, "Okay keeps it")
+
+	open()
+	check(box:GetChecked() == true, "opens ticked")
+	click(false)
+	cancel()
+	frame()
+	check(G.settings.hold == 1, "untick then Cancel in the same frame: still on")
+	wait(1)
+	open()
+	click(false)
+	frame()
+	cancel()
+	frame()
+	check(G.settings.hold == 1, "untick, a frame, then Cancel: back on")
+	wait(1)
+
+	pad.saved = nil
+	open()
+	cancel()
+	frame()
+	check(#pad.commands == 0 and pad.saved == nil, "closing with nothing changed sends nothing")
+
+	SlashCmdList.GAMEPAD("hold 0")
+	frame()
+	okay()
+	frame()
+	check(G.settings.hold == 0, "a chat change and then Okay: Okay doesn't put the old value back")
+	open()
+	check(box:GetChecked() == false and box.value == "0", "and the box shows it on the next open")
+
+	click(true)
+	frame()
+	wait(1)
+	defaults()
+	frame()
+	check(G.settings.hold == 0, "Defaults turns it off")
+
+	-- A request the DLL dropped (its queue was full) doesn't stick to the box.
+	local post = N.PostCommand
+	N.PostCommand = function() end
+	click(true)
+	wait(1)
+	open()
+	check(box:GetChecked() == false, "a lost request: the box shows the real setting again")
+	N.PostCommand = post
+	SlashCmdList.GAMEPAD("quiet nonsense")
+	clear() frame()
+	check(not called("say"), "quiet stays quiet, help text too")
 end
 
 -- ---- an addon replaced a function before we loaded ------------------------------------------------------------

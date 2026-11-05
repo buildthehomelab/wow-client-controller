@@ -55,6 +55,75 @@ int logic_mouse_step(float stick, float pixels_per_second, float seconds, float 
     return whole;
 }
 
+static int same(const char *a, const char *b)
+{
+    while (*a && *a == *b) {
+        a++;
+        b++;
+    }
+    return *a == *b;
+}
+
+/* A number from 1 to 99 and nothing after it, else 0. */
+static int small_number(const char *text)
+{
+    int value = 0, digits = 0;
+    while (*text >= '0' && *text <= '9' && digits < 2) {
+        value = value * 10 + (*text - '0');
+        text++;
+        digits++;
+    }
+    return (*text || !digits) ? 0 : value;
+}
+
+static int starts(const char *text, const char *prefix, const char **rest)
+{
+    while (*prefix && *text == *prefix) {
+        text++;
+        prefix++;
+    }
+    if (*prefix)
+        return 0;
+    *rest = text;
+    return 1;
+}
+
+/* Windows' own numbers, written out so this file needs no Windows headers. */
+static const struct { const char *name; int vk; } NAMED_KEYS[] = {
+    { "SPACE", 0x20 }, { "PAGEUP", 0x21 }, { "PAGEDOWN", 0x22 }, { "END", 0x23 }, { "HOME", 0x24 },
+    { "LEFT", 0x25 }, { "UP", 0x26 }, { "RIGHT", 0x27 }, { "DOWN", 0x28 }, { "INSERT", 0x2D }, { "DELETE", 0x2E },
+    { "BACKSPACE", 0x08 }, { "TAB", 0x09 }, { "ENTER", 0x0D }, { "PAUSE", 0x13 }, { "CAPSLOCK", 0x14 },
+    { "NUMLOCK", 0x90 }, { "SCROLLLOCK", 0x91 }, { "PRINTSCREEN", 0x2C },
+    { "NUMPADMULTIPLY", 0x6A }, { "NUMPADPLUS", 0x6B }, { "NUMPADMINUS", 0x6D }, { "NUMPADDECIMAL", 0x6E },
+    { "NUMPADDIVIDE", 0x6F },
+    { "BUTTON3", 0x04 }, { "MIDDLEBUTTON", 0x04 }, { "BUTTON4", 0x05 }, { "BUTTON5", 0x06 },
+};
+
+int logic_key_vk(const char *name)
+{
+    const char *rest;
+    int number;
+    unsigned i;
+    if (!name || !name[0])
+        return 0;
+    if (!name[1]) {
+        char c = name[0];
+        if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'))
+            return c;
+        if (c > ' ' && c < 127 && !(c >= 'a' && c <= 'z'))
+            return -c;
+        return 0;
+    }
+    for (i = 0; i < sizeof(NAMED_KEYS) / sizeof(NAMED_KEYS[0]); i++)
+        if (same(name, NAMED_KEYS[i].name))
+            return NAMED_KEYS[i].vk;
+    if (starts(name, "NUMPAD", &rest) && rest[0] >= '0' && rest[0] <= '9' && !rest[1])
+        return 0x60 + (rest[0] - '0');
+    if (starts(name, "F", &rest) && (number = small_number(rest)) >= 1 && number <= 24)
+        return 0x70 + number - 1;
+    return 0;
+}
+
 void queue_push(struct EventQueue *q, int button, int down)
 {
     unsigned slot;

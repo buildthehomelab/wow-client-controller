@@ -71,6 +71,19 @@ int main(void)
     check(strcmp(logic_button_name(BTN_RT), "RT") == 0, "rt name");
     check(strcmp(logic_button_name(99), "") == 0, "bad button name");
 
+    check(logic_key_vk("Q") == 'Q', "a letter is its own key");
+    check(logic_key_vk("7") == '7', "a digit is its own key");
+    check(logic_key_vk("F1") == 0x70 && logic_key_vk("F12") == 0x7B, "function keys");
+    check(logic_key_vk("F0") == 0 && logic_key_vk("F25") == 0 && logic_key_vk("F1X") == 0, "no such function key");
+    check(logic_key_vk("NUMPAD0") == 0x60 && logic_key_vk("NUMPAD9") == 0x69, "numpad digits");
+    check(logic_key_vk("NUMPADPLUS") == 0x6B, "numpad plus");
+    check(logic_key_vk("BUTTON4") == 0x05 && logic_key_vk("BUTTON3") == 0x04, "side and middle mouse buttons");
+    check(logic_key_vk("BUTTON1") == 0 && logic_key_vk("MOUSEWHEELUP") == 0, "keys that can't be held");
+    check(logic_key_vk("SPACE") == 0x20 && logic_key_vk("PAGEDOWN") == 0x22, "named keys");
+    check(logic_key_vk("-") == -'-' && logic_key_vk("[") == -'[', "punctuation asks the layout");
+    check(logic_key_vk("") == 0 && logic_key_vk(0) == 0 && logic_key_vk("q") == 0, "nothing for nonsense");
+    check(logic_key_vk("SHIFT-Q") == 0, "modifiers aren't part of the name");
+
     printf("%d checks, %d failures\n", checks, failures);
     return failures != 0;
 }
