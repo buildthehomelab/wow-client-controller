@@ -83,7 +83,9 @@ the wrong buttons, so tell me its name from the log.
 
 ## 10. Hold to keep casting
 
-1. `/controller hold 1` in chat. It should say `hold is now 1.`
+1. Esc, Interface, Game tab, Combat: **Press and Hold Casting** sits under the self cast key, unticked. Tick it and press
+   Okay. Open it again: still ticked. Untick and press Cancel: still ticked. `/controller hold 0` in chat, then open the
+   panel: unticked. Tick it again for the steps below. If the box overlaps something or is missing, send a screenshot.
 2. **Keyboard**, controller unplugged: put a spell with a short cooldown on bar key 1 (main bar) and one on a bottom left
    bar key. Tap each: one cast, as before. Hold each on a target dummy or a mob: it casts, then casts again each time the
    cooldown or global cooldown ends. Let go: no extra cast and no "Spell is not ready yet".
@@ -94,7 +96,7 @@ the wrong buttons, so tell me its name from the log.
 6. **Controller**: hold East on a mob. It casts on the press and again each time it's ready. Hold LT, press East, let go
    of LT while still holding East: it keeps using the LT ability.
 7. In combat, all of the above: if "Interface action failed because of an AddOn" shows, send me the log.
-8. `/controller hold 0`: holding goes back to one cast.
+8. Untick the box: holding goes back to one cast.
 
 ## Removing it
 

@@ -67,7 +67,15 @@ local function newFrame()
 	return f
 end
 
-_G.CreateFrame = function() return newFrame() end
+_G.CreateFrame = function(kind, name, parent, template)
+	local f = newFrame()
+	rawset(f, "frameName", name)
+	rawset(f, "template", template)
+	return f
+end
+function FrameMeta.GetName(self) return rawget(self, "frameName") end
+function FrameMeta.SetChecked(self, on) rawset(self, "checked", on and true or false) end
+function FrameMeta.GetChecked(self) return rawget(self, "checked") end
 _G.UIParent = newFrame()
 _G.WorldFrame = newFrame()
 _G.GetScreenWidth = function() return 1000 end
@@ -184,6 +192,15 @@ for i = 1, 12 do
 	_G["ActionButton" .. i].action = i
 	_G["MultiBarBottomLeftButton" .. i] = newFrame()
 	_G["MultiBarBottomLeftButton" .. i].action = 60 + i
+end
+
+-- Interface Options, Combat.
+local optionControls = {}
+_G.CONTROLTYPE_CHECKBOX = 1
+_G.InterfaceOptionsCombatPanel = newFrame()
+_G.InterfaceOptionsCombatPanelSelfCastKeyDropDown = newFrame()
+_G.BlizzardOptionsPanel_RegisterControl = function(control, panel)
+	optionControls[#optionControls + 1] = { control = control, panel = panel }
 end
 
 -- ---- pretend controller --------------------------------------------------------------------------------------
@@ -915,6 +932,107 @@ do
 	check(count("UseAction") == 1, "off: a held controller button is used once")
 	release("EAST")
 	game.gcd = nil
+end
+
+-- ---- the setting in Interface Options ---------------------------------------------------------------------------
+do
+	check(#optionControls == 1 and optionControls[1].panel == _G.InterfaceOptionsCombatPanel,
+		"hold has a box in Interface, Combat")
+	local box = optionControls[1].control
+	check(box.template == "InterfaceOptionsCheckButtonTemplate" and box.type == CONTROLTYPE_CHECKBOX, "a stock checkbox")
+	check(box.frameName ~= nil, "named, so the template's label exists")
+	check(box.value == "0" and box:GetValue() == "0" and box.defaultValue == "0", "off, and off by default")
+
+	local function wait(seconds)
+		for _ = 1, math.floor(seconds / 0.05 + 0.5) do frame(0.05) end
+	end
+	-- Copies of the stock calls (InterfaceOptionsPanels.lua, OptionsPanelTemplates.lua), branch for branch.
+	local function click(on) -- InterfaceOptionsPanel_CheckButton_Update
+		box:SetChecked(on)
+		box.value = on and "1" or "0"
+		if box.setFunc then box.setFunc(box.value) end
+	end
+	local function open() -- InterfaceOptionsPanel_Refresh: BlizzardOptionsPanel_CheckButton_Refresh, then oldValue
+		local value = tostring(box:GetValue())
+		box:SetChecked(value == "1")
+		box.oldValue = box.value
+	end
+	local function cancel() -- InterfaceOptionsPanel_Cancel
+		if box.oldValue then
+			if box.value and box.value ~= box.oldValue then box:SetValue(box.oldValue) end
+		elseif box.value then
+			if box:GetValue() ~= box.value then box:SetValue(box.value) end
+		end
+		if box.setFunc then box.setFunc(box:GetValue()) end
+	end
+	local function okay() -- BlizzardOptionsPanel_OkayControl, no newValue
+		if box.value and box:GetValue() ~= box.value then box:SetValue(box.value) end
+	end
+	local function defaults() -- InterfaceOptionsPanel_Default
+		if box.defaultValue and box.value ~= box.defaultValue then
+			box:SetValue(box.defaultValue)
+			box.value = box.defaultValue
+		end
+		if box.setFunc then box.setFunc(box:GetValue()) end
+	end
+
+	open()
+	check(box:GetChecked() == false, "opens unticked")
+	clear() click(true)
+	frame()
+	check(G.settings.hold == 1 and pad.saved:find("hold=1"), "ticking the box turns it on and saves it")
+	check(not called("say"), "without a chat message")
+	okay()
+	frame()
+	check(G.settings.hold == 1, "Okay keeps it")
+
+	open()
+	check(box:GetChecked() == true, "opens ticked")
+	click(false)
+	cancel()
+	frame()
+	check(G.settings.hold == 1, "untick then Cancel in the same frame: still on")
+	wait(1)
+	open()
+	click(false)
+	frame()
+	cancel()
+	frame()
+	check(G.settings.hold == 1, "untick, a frame, then Cancel: back on")
+	wait(1)
+
+	pad.saved = nil
+	open()
+	cancel()
+	frame()
+	check(#pad.commands == 0 and pad.saved == nil, "closing with nothing changed sends nothing")
+
+	SlashCmdList.GAMEPAD("hold 0")
+	frame()
+	okay()
+	frame()
+	check(G.settings.hold == 0, "a chat change and then Okay: Okay doesn't put the old value back")
+	open()
+	check(box:GetChecked() == false and box.value == "0", "and the box shows it on the next open")
+
+	click(true)
+	frame()
+	wait(1)
+	defaults()
+	frame()
+	check(G.settings.hold == 0, "Defaults turns it off")
+
+	-- A request the DLL dropped (its queue was full) doesn't stick to the box.
+	local post = N.PostCommand
+	N.PostCommand = function() end
+	click(true)
+	wait(1)
+	open()
+	check(box:GetChecked() == false, "a lost request: the box shows the real setting again")
+	N.PostCommand = post
+	SlashCmdList.GAMEPAD("quiet nonsense")
+	clear() frame()
+	check(not called("say"), "quiet stays quiet, help text too")
 end
 
 -- ---- an addon replaced a function before we loaded ------------------------------------------------------------

@@ -269,4 +269,60 @@ G.Listen("release", function()
 	end
 end)
 
+-- ---- the setting, where Forever has it: Interface, Combat ----------------------------------------------------------
+
+-- Interface Options applies a box the moment it's clicked, puts it back on Cancel and clears it on Defaults
+-- (InterfaceOptionsPanels.lua), and calls the box for all of that from code an addon may have tainted. So the box only
+-- passes text on, as the slash command does, and the frame function never touches the box: it's a global, and an addon
+-- could put its own functions on it. The box reads the setting whenever the window asks, so a change from chat shows
+-- on the next open and a later Okay can't put the old value back. Until a request has had a moment to apply, the box
+-- answers with it, so Cancel's set-then-read sees its own value.
+local ASKED_FOR = 0.5
+
+local function AddOption()
+	local panel = InterfaceOptionsCombatPanel
+	-- The self cast key menu, the last setting in the left column ("$parentSelfCastKeyDropDown" in the XML).
+	local above = panel and _G["InterfaceOptionsCombatPanel" .. "SelfCastKeyDropDown"]
+	if not (panel and above and BlizzardOptionsPanel_RegisterControl) then
+		N.Log("no combat options panel: hold has only /controller hold")
+		return
+	end
+	local box = CreateFrame("CheckButton", "InterfaceOptionsCombatPanelPressAndHoldCasting", panel,
+		"InterfaceOptionsCheckButtonTemplate")
+	box:SetPoint("TOPLEFT", above, "BOTTOMLEFT", 13, -8)
+	local name = box:GetName()
+	local label = name and _G[name .. "Text"]
+	if label then label:SetText("Press and Hold Casting") end
+	box.tooltipText = "Hold down an ability's key or controller button to keep using it each time it's ready."
+	box.type = CONTROLTYPE_CHECKBOX
+	box.defaultValue = "0"
+
+	local asked, askedAt
+	local function Current()
+		if asked and GetTime() - askedAt < ASKED_FOR then return asked end
+		asked = nil
+		return tostring(G.settings.hold)
+	end
+	local function Ask(value)
+		value = (value == "1" or value == 1) and "1" or "0"
+		-- Closing the window sends every box its value again; an unchanged one needn't go anywhere.
+		if value == Current() then return end
+		asked, askedAt = value, GetTime()
+		N.PostCommand("quiet hold " .. value)
+	end
+	box.GetValue = function(self)
+		local value = Current()
+		self.value = value
+		return value
+	end
+	box.SetValue = function(self, value)
+		self.value = value
+		Ask(value)
+	end
+	box.setFunc = Ask
+	box.value = tostring(G.settings.hold)
+	BlizzardOptionsPanel_RegisterControl(box, panel)
+end
+G.Safe("options", AddOption)
+
 N.Log("hold loaded")

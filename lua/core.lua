@@ -188,8 +188,12 @@ SlashCmdList["GAMEPAD"] = function(text)
 end
 
 function G.Command(text)
+	-- "quiet ..." comes from a settings window, which shows the change itself.
+	local quiet = string.match(text, "^quiet%s+(.*)$")
+	if quiet then text = quiet end
 	local key, value = string.match(text, "^(%S*)%s*(%S*)")
 	local function say(message)
+		if quiet then return end
 		DEFAULT_CHAT_FRAME:AddMessage("|cff66bbffController:|r " .. message)
 	end
 	if key == "on" or key == "off" then
