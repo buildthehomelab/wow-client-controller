@@ -52,7 +52,7 @@ end
 -- Picks the cross's style, "wow" or "xiv"; saved like /controller style. Anything else is ignored.
 function api.SetStyle(name)
 	if name == "wow" or name == "xiv" then
-		N.PostCommand("setstyle " .. name)
+		N.PostCommand("quiet style " .. name)
 	end
 end
 

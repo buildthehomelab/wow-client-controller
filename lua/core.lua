@@ -222,8 +222,8 @@ function G.Command(text)
 		-- Not saved: the addon says it again after a reload.
 		G.ownBars = value == "1"
 		G.Fire("settings", "ownbars")
-	elseif key == "style" or key == "setstyle" then
-		-- By name or number. setstyle comes from C_Controller.SetStyle and says nothing.
+	elseif key == "style" then
+		-- By name or number. C_Controller.SetStyle sends it quiet.
 		value = string.lower(value)
 		local number = tonumber(value)
 		for index, name in pairs(G.STYLES or {}) do
@@ -233,8 +233,8 @@ function G.Command(text)
 			G.settings.style = number
 			G.SaveSettings()
 			G.Fire("settings", "style")
-			if key == "style" then say("the cross is now " .. G.STYLES[number] .. ".") end
-		elseif key == "style" then
+			say("the cross is now " .. G.STYLES[number] .. ".")
+		else
 			say("/controller style wow | xiv")
 		end
 	elseif DEFAULTS[key] and key ~= "enabled" and tonumber(value) then
