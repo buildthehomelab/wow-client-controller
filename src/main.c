@@ -27,6 +27,7 @@ EMBED(lua_cursor, "lua/cursor.lua")
 EMBED(lua_hud, "lua/hud.lua")
 EMBED(lua_world, "lua/world.lua")
 EMBED(lua_glue, "lua/glue.lua")
+EMBED(lua_api, "lua/api.lua")
 EMBED(art_ltr, "art/ltr.blp")
 EMBED(art_shp, "art/shp.blp")
 EMBED(art_rev, "art/rev.blp")
@@ -405,25 +406,31 @@ static int l_global(lua_State *L)
     return 2;
 }
 
-/* A slash command can arrive from chat code an addon has tainted, and anything it wrote into our tables would stay
-   tainted for good. So its text waits here, and the frame function picks up a clean copy. */
-static char g_command[256];
-static int g_command_waiting;
+/* A slash command or an addon's request can arrive from code an addon has tainted, and anything it wrote into our
+   tables would stay tainted for good. So its text waits here, and the frame function picks up a clean copy. A few can
+   wait at once, so an addon's request and the player's command in the same frame both arrive; past that, the newest
+   are dropped. */
+#define COMMAND_SLOTS 8
+static char g_commands[COMMAND_SLOTS][256];
+static unsigned g_command_first, g_command_count;
 
 static int l_post_command(lua_State *L)
 {
     const char *text = lua_tolstring(L, 1, NULL);
-    lstrcpynA(g_command, text ? text : "", sizeof(g_command));
-    g_command_waiting = 1;
+    if (g_command_count == COMMAND_SLOTS)
+        return 0;
+    lstrcpynA(g_commands[(g_command_first + g_command_count) % COMMAND_SLOTS], text ? text : "", 256);
+    g_command_count++;
     return 0;
 }
 
 static int l_next_command(lua_State *L)
 {
-    if (!g_command_waiting)
+    if (g_command_count == 0)
         return 0;
-    g_command_waiting = 0;
-    lua_pushstring(L, g_command);
+    lua_pushstring(L, g_commands[g_command_first]);
+    g_command_first = (g_command_first + 1) % COMMAND_SLOTS;
+    g_command_count--;
     return 1;
 }
 
@@ -554,6 +561,9 @@ static void start_ui(lua_State *L, int in_game)
     int depth = CLIENT_TAINT_DEPTH;
     int top = lua_gettop(L);
 
+    /* A request left from the UI before a reload or logout was meant for that one. */
+    g_command_first = g_command_count = 0;
+
     CLIENT_TAINT_DEPTH = depth + 1;
     g_starting = 1;
     CLIENT_TAINT = 0;
@@ -580,6 +590,7 @@ static void start_ui(lua_State *L, int in_game)
         run_file(L, lua_cursor, lua_cursor_end, "@Controller\\cursor.lua");
         run_file(L, lua_hud, lua_hud_end, "@Controller\\hud.lua");
         run_file(L, lua_world, lua_world_end, "@Controller\\world.lua");
+        run_file(L, lua_api, lua_api_end, "@Controller\\api.lua");
     } else {
         run_file(L, lua_glue, lua_glue_end, "@Controller\\glue.lua");
     }

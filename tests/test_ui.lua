@@ -135,7 +135,7 @@ _G.StaticPopup1.shown = false
 _G.MAINMENU_BUTTON = "Menu"
 
 -- ---- pretend controller --------------------------------------------------------------------------------------
-local pad = { replaced = {}, connected = true, family = "ltr", lx = 0, ly = 0, rx = 0, ry = 0, front = true, queue = {}, scan = nil }
+local pad = { replaced = {}, connected = true, family = "ltr", lx = 0, ly = 0, rx = 0, ry = 0, front = true, queue = {}, commands = {}, scan = nil }
 local driver
 local N = {
 	SetDriver = function(func) driver = func end,
@@ -159,12 +159,8 @@ local N = {
 	Call = function(func, ...) return func(...) end,
 	Global = function(name) return _G[name], not pad.replaced[name] end,
 	InWorld = function() return not game.loading end,
-	PostCommand = function(text) pad.command = text end,
-	NextCommand = function()
-		local c = pad.command
-		pad.command = nil
-		return c
-	end,
+	PostCommand = function(text) pad.commands[#pad.commands + 1] = text end,
+	NextCommand = function() return table.remove(pad.commands, 1) end,
 	Log = function(m) if m:find("^error") then print(m) failures = failures + 1 end end,
 	LoadSettings = function() return pad.settings end,
 	SaveSettings = function(t) pad.saved = t end,
@@ -174,12 +170,13 @@ pad.settings = "camera=500\nbogus=3\n"
 local G = {}
 local before = {}
 for key in pairs(_G) do before[key] = true end
-for _, file in ipairs { "atlas", "core", "actions", "radial", "cursor", "hud", "world" } do
+for _, file in ipairs { "atlas", "core", "actions", "radial", "cursor", "hud", "world", "api" } do
 	assert(loadfile("lua/" .. file .. ".lua"))(N, G)
 end
 local Atlas = G.Atlas
 for key in pairs(_G) do
-	check(before[key] or key == "SLASH_GAMEPAD1", "no new global but the slash command: " .. tostring(key))
+	check(before[key] or key == "SLASH_GAMEPAD1" or key == "C_Controller",
+		"no new global but the slash command and the addon API: " .. tostring(key))
 end
 check(driver ~= nil, "the frame function goes to the DLL, not onto a frame anyone can find")
 check(#onUpdates == 0, "no OnUpdate scripts")
@@ -574,6 +571,94 @@ check(G.settings.camera == 700, "/controller camera 700")
 SlashCmdList.GAMEPAD("")
 frame()
 check(called("say"), "help text")
+
+-- ---- the addon API ------------------------------------------------------------------------------------------
+do
+	local api = C_Controller
+	check(type(api) == "table", "C_Controller is there for addons")
+	local function binding(bar, index) return table.concat({ api.GetBinding(bar, index) }, " ") end
+	check(binding("main", 1) == "EAST BASE", "main 1 is East")
+	check(binding("main", 7) == "LEFT BASE", "main 7 is Left")
+	check(binding("main", 8) == "SOUTH LT", "main 8 is LT+South")
+	check(binding("bottomleft", 3) == "LEFT LT", "bottom left 3 is LT+Left")
+	check(binding("bottomleft", 12) == "SOUTH BOTH", "bottom left 12 is both triggers + South")
+	check(binding("bottomright", 7) == "LEFT BOTH", "bottom right 7 is both triggers + Left")
+	check(api.GetBinding("bottomright", 8) == nil, "bottom right 8 has no button")
+	check(api.GetBinding("right", 1) == nil, "other bars have none")
+	local path, l, r, t, b = api.GetGlyph("SOUTH")
+	local cell = Atlas.ltr.SOUTH
+	check(path == "Interface\\GamePad\\ltr" and l == cell[2] and b == cell[5], "glyph for the pad in use")
+	check(api.GetGlyph("NOPE") == nil, "no glyph for a made-up button")
+	check(type(api.GetBinding("main", 1)) == "string", "plain values, never our tables")
+
+	tap("EAST")
+	local connected, active, family, layer, mode = api.GetState()
+	check(connected and active and family == "ltr" and layer == "BASE" and mode == "world", "state while in use")
+	press("LT")
+	check(select(4, api.GetState()) == "LT", "the held layer")
+	release("LT")
+
+	check(G.hudFrame:IsShown(), "the cross shows while in use")
+	api.SetBarsShown(true)
+	check(G.hudFrame:IsShown(), "a request waits for the next frame")
+	frame()
+	check(not G.hudFrame:IsShown(), "an addon showing the abilities on its bars hides the cross")
+	tap("EAST")
+	check(not G.hudFrame:IsShown(), "and it stays hidden while playing")
+	api.SetBarsShown(false)
+	frame()
+	check(G.hudFrame:IsShown(), "and comes back when the addon stops")
+	check(not pad.saved or not pad.saved:find("ownbars"), "not saved")
+
+	press("WEST")
+	api.Rest()
+	frame()
+	check(not G.active and not select(2, api.GetState()), "Rest hands back to keyboard and mouse")
+	check(not G.held.WEST, "and lets go of what was held")
+	check(not G.hudFrame:IsShown(), "with the cross gone")
+	release("WEST")
+	tap("EAST")
+	check(G.active, "the next press takes over again")
+
+	-- Rest out of a cursor the player asked for: a window opened later still takes it and gives it back.
+	tap("BACK")
+	check(G.mode == "cursor", "Back gives the cursor")
+	api.Rest()
+	frame()
+	check(G.mode == "world" and not G.active, "Rest leaves the cursor")
+	tap("EAST")
+	game.windows.left = {}
+	frame(0.3) frame(0.1)
+	check(G.mode == "cursor", "a window opened after Rest takes the cursor")
+	game.windows.left = nil
+	frame(0.3)
+	check(G.mode == "world", "and gives it back when it closes")
+
+	-- Rest while placing a spell drops the spell, so the next press isn't aiming blind.
+	game.castTargets = true
+	clear() tap("EAST")
+	game.castTargets = false
+	check(G.mode == "aim", "aiming")
+	api.Rest()
+	clear() frame()
+	check(called("SpellStopTargeting") and G.mode == "world" and not game.targeting, "Rest while aiming cancels it")
+	tap("EAST")
+
+	SlashCmdList.GAMEPAD("off")
+	frame()
+	check(not (api.GetState()), "turned off counts as no controller")
+	SlashCmdList.GAMEPAD("on")
+	frame()
+	check((api.GetState()), "and on again as plugged in")
+	tap("EAST")
+
+	api.SetBarsShown(true)
+	SlashCmdList.GAMEPAD("camera 650")
+	frame()
+	check(G.ownBars and G.settings.camera == 650, "an addon request and a slash command in one frame both arrive")
+	api.SetBarsShown(false)
+	frame()
+end
 
 -- ---- an addon replaced a function before we loaded ------------------------------------------------------------
 do

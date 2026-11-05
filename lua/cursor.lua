@@ -129,6 +129,8 @@ function G.EnterCursor(fromPlayer)
 	G.SetMode("cursor")
 end
 
+G.StopTargeting = SpellStopTargeting
+
 function G.LeaveCursor(dismiss)
 	manual, entered = false, false
 	firstButtonIn = nil

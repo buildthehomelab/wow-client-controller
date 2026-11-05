@@ -149,8 +149,11 @@ local function Frame(elapsed)
 		end
 	end
 
-	local command = N.NextCommand()
-	if command then G.Safe("command", G.Command, command) end
+	while true do
+		local command = N.NextCommand()
+		if not command then break end
+		G.Safe("command", G.Command, command)
+	end
 
 	while true do
 		local name, down = N.NextEvent()
@@ -194,6 +197,23 @@ function G.Command(text)
 		end
 		G.SaveSettings()
 		say(key == "on" and "on." or "off. /controller on turns it back on.")
+	elseif key == "rest" then
+		-- From C_Controller.Rest: back to keyboard and mouse until the next button press. Not saved, nothing said.
+		-- Releases first: they go through the cursor and aim handlers, which need the mode they started in.
+		ReleaseEverything()
+		if G.mode == "cursor" then
+			-- Forgets why the cursor was on, so a window opened later still gets it and gives it back.
+			G.LeaveCursor(true)
+		elseif G.mode == "aim" then
+			G.StopTargeting()
+			G.SetMode("world")
+		end
+		G.SetActive(false)
+	elseif key == "ownbars" then
+		-- From C_Controller.SetBarsShown: an addon draws the abilities on its own bars, so the cross stays hidden.
+		-- Not saved: the addon says it again after a reload.
+		G.ownBars = value == "1"
+		G.Fire("settings", "ownbars")
 	elseif DEFAULTS[key] and key ~= "enabled" and tonumber(value) then
 		G.settings[key] = tonumber(value)
 		G.SaveSettings()
