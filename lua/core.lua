@@ -12,6 +12,7 @@ local DEFAULTS = {
 	autotarget = 1,    -- a harmful spell with no enemy targeted picks the nearest one first
 	autocursor = 1,    -- windows that open take the cursor to their first button
 	rumble = 1,
+	hold = 0,          -- 1: holding an ability's button or key keeps using it (hold.lua)
 	enabled = 1,
 }
 
@@ -172,6 +173,8 @@ local function Frame(elapsed)
 	if G.settings.enabled == 1 and G.active then
 		G.Fire("update", elapsed, inFront)
 	end
+	-- Every frame, with or without a controller: holding a key works for everyone.
+	G.Fire("tick", elapsed, inFront)
 end
 
 N.SetDriver(function(elapsed)
@@ -221,7 +224,7 @@ function G.Command(text)
 		say(key .. " is now " .. value .. ".")
 	else
 		say(G.connected and ("using " .. tostring(N.Name()) .. ".") or "no controller found.")
-		say("/controller on | off | camera 900 | cursor 1000 | invert 0-1 | hud 0-1 | autotarget 0-1 | autocursor 0-1 | rumble 0-1")
+		say("/controller on | off | camera 900 | cursor 1000 | invert 0-1 | hud 0-1 | autotarget 0-1 | autocursor 0-1 | rumble 0-1 | hold 0-1")
 	end
 end
 

@@ -81,6 +81,21 @@ Go back to character select: D-pad up and down picks, South enters the world.
 If you have more types, unplug one and plug in another. The button pictures should change. A pad I couldn't test may have
 the wrong buttons, so tell me its name from the log.
 
+## 10. Hold to keep casting
+
+1. `/controller hold 1` in chat. It should say `hold is now 1.`
+2. **Keyboard**, controller unplugged: put a spell with a short cooldown on bar key 1 (main bar) and one on a bottom left
+   bar key. Tap each: one cast, as before. Hold each on a target dummy or a mob: it casts, then casts again each time the
+   cooldown or global cooldown ends. Let go: no extra cast and no "Spell is not ready yet".
+3. Shift: a macro with `[mod:shift]` on a plain key, held with Shift down: the Shift spell repeats. A heal held with Alt:
+   it lands on you, not the target. Try once with DragonUI's key-down casting on as well.
+4. Hold the Attack ability, Auto Shot or a wand, a mount, and an aura or stance already on: none of them should turn off.
+5. Hold a key while typing in chat: nothing casts. Hold one out of range: an error about once a second, not a stream.
+6. **Controller**: hold East on a mob. It casts on the press and again each time it's ready. Hold LT, press East, let go
+   of LT while still holding East: it keeps using the LT ability.
+7. In combat, all of the above: if "Interface action failed because of an AddOn" shows, send me the log.
+8. `/controller hold 0`: holding goes back to one cast.
+
 ## Removing it
 
 Delete `msacm32.dll`, `SDL3.dll`, `WTF\Controller.txt` and `Interface\GamePad`, or just open the launcher, which removes the

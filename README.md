@@ -30,9 +30,28 @@ so your abilities stay yours. Need-or-greed rolls always wait for Back. A harmfu
 nearest one first.
 
 `/controller` in chat lists the settings: `on`, `off`, `camera`, `cursor`, `invert`, `hud`, `autotarget`, `autocursor`,
-`rumble`. They save to `WTF\Controller.txt`.
+`rumble`, `hold`. They save to `WTF\Controller.txt`.
 
 Keyboard and mouse keep working alongside it. Without a controller nothing shows and nothing changes.
+
+## Hold to keep casting
+
+WoW Forever's press and hold casting: hold an ability's button or key and it's used again each time it's ready, until
+you let go. Off until you turn it on with `/controller hold 1`; `/controller hold 0` turns it off. It works for keyboard
+players with no controller too, so `/controller off` (the controller) leaves it as it is.
+
+- **Controller:** the press uses the ability as before. Held, it's used again each time it's ready. It stays on the layer
+  it was pressed on, so letting go of a trigger mid-hold doesn't swap the ability.
+- **Keys:** the keys bound to the main bar and the four extra bars, with or without modifiers. A quick tap is untouched:
+  this client casts a bar key when it's let go. Held past a quarter second, the ability is used then and each time it's
+  ready, and letting go doesn't cast it once more. Shift with a plain key's binding works as it does in the client, so
+  `[mod:shift]` macros repeat too, and Alt self-cast still casts on yourself.
+- **Never repeated:** auto attack, Auto Shot and wands, mounts and companions, anything the bar shows as already on (a
+  stance, an aura), and nothing cuts into a cast or channel already going. A use that shows no cooldown, cast or "on"
+  waits a second before the next, in case it was a toggle the server hasn't answered for yet. An ability the game refuses
+  (out of range, moving) is tried again a second later, not every frame. Keys do nothing while you type in chat or set
+  key bindings, or with the game behind another window.
+- Keys another bar addon has taken over (Bartender4, Dominos) are left alone. DragonUI's key-down casting works with it.
 
 ## Controllers
 
@@ -89,6 +108,8 @@ Poll `GetState` from your own `OnUpdate`. The controller never calls into an add
   through the DLL rather than writing to the UI's tables.
 - **Camera and clicks** are real mouse events (`SendInput`), sent only while the game is the window in front. The DLL
   remembers any button it holds down and always lets go: on losing focus, on a UI reload, on exit.
+- **Held keys** are read from Windows (`GetAsyncKeyState`), only while the game is in front: the client tells Lua when a
+  binding starts and ends but never whether a key is still down.
 - **No C runtime.** `Wow.exe` imports this DLL directly, so a dependency Windows can't find would stop the game starting.
   It imports `kernel32` and `user32` only, and the build fails otherwise.
 
