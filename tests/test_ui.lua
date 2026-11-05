@@ -60,6 +60,9 @@ end
 function FrameMeta.GetButtonState(self) return rawget(self, "state") or "NORMAL" end
 function FrameMeta.SetButtonState(self, state) self.state = state end
 function FrameMeta.GetChildren() return end
+function FrameMeta.SetSize(self, w, h) self.w, self.h = w, h end
+function FrameMeta.SetAlpha(self, a) self.alpha = a end
+function FrameMeta.SetPoint(self, ...) self.point = { ... } end
 function FrameMeta.GetRegions() return end
 local function newFrame()
 	local f = setmetatable({ scripts = {}, shown = true }, FrameMeta)
@@ -1033,6 +1036,69 @@ do
 	SlashCmdList.GAMEPAD("quiet nonsense")
 	clear() frame()
 	check(not called("say"), "quiet stays quiet, help text too")
+end
+
+-- ---- the cross's two styles -----------------------------------------------------------------------------------
+do
+	local api = C_Controller
+	local parts = G.hudParts
+	tap("EAST")
+	check(G.Style() == "wow" and api.GetStyle() == "wow", "WoW Forever's cross by default")
+	check(G.hudFrame:IsShown() and parts.wow:IsShown() and not parts.xiv:IsShown(), "and it's the one on screen")
+
+	clear()
+	SlashCmdList.GAMEPAD("style xiv")
+	frame()
+	check(G.settings.style == 1 and pad.saved:find("style=1"), "/controller style xiv picks the cross hotbar, saved")
+	check(called("say"), "and says so")
+	check(parts.xiv:IsShown() and not parts.wow:IsShown(), "the cross hotbar replaces the cross")
+	local sets = parts.sets
+	check(sets.MIDDLE.layer == "BASE" and sets.LT.layer == "LT" and sets.RT.layer == "RT", "LT, the buttons, RT")
+	check(sets.MIDDLE.frame.alpha == 1 and sets.LT.frame.alpha < 1 and sets.RT.frame.alpha < 1,
+		"nothing held: the buttons' own set stands out")
+	check(sets.MIDDLE.buttons.EAST.w > sets.LT.buttons.EAST.w, "and is the big one")
+	check(not sets.MIDDLE.labels[1].shown and sets.LT.labels[1].shown and not sets.LT.labels[2].shown,
+		"each trigger's set is labelled with its trigger")
+
+	press("LT")
+	check(sets.LT.frame.alpha == 1 and sets.MIDDLE.frame.alpha < 1, "holding LT brings its set forward")
+	check(sets.LT.buttons.EAST.w > sets.MIDDLE.buttons.EAST.w, "at full size")
+	local function middle(set) return (set.buttons.LEFT.point[2] + set.buttons.EAST.point[2]) / 2 end
+	local ltMiddle = middle(sets.LT)
+	press("RT")
+	check(sets.MIDDLE.layer == "BOTH" and sets.MIDDLE.frame.alpha == 1, "both triggers bring their set to the middle")
+	check(sets.LT.frame.alpha < 1 and sets.RT.frame.alpha < 1, "with LT's and RT's faint")
+	check(sets.MIDDLE.labels[1].shown and sets.MIDDLE.labels[2].shown, "labelled LT and RT")
+	release("RT")
+	release("LT")
+	check(sets.MIDDLE.layer == "BASE" and sets.MIDDLE.frame.alpha == 1, "letting go puts the buttons' set back")
+	check(math.abs(middle(sets.LT) - ltMiddle) < 0.01 and ltMiddle < middle(sets.MIDDLE)
+		and middle(sets.MIDDLE) < middle(sets.RT), "sets grow in place: LT left, RT right")
+
+	clear()
+	api.SetStyle("bogus")
+	frame()
+	check(G.settings.style == 1, "a made-up style is ignored")
+	api.SetStyle("wow")
+	check(G.settings.style == 1, "an addon's pick waits for the next frame")
+	frame()
+	check(G.settings.style == 0 and api.GetStyle() == "wow" and pad.saved:find("style=0"), "an addon can pick the style")
+	check(not called("say"), "quietly")
+	check(parts.wow:IsShown() and not parts.xiv:IsShown(), "and the cross is back")
+	SlashCmdList.GAMEPAD("style XIV")
+	frame()
+	check(G.settings.style == 1, "in any case")
+	SlashCmdList.GAMEPAD("style 0")
+	frame()
+	SlashCmdList.GAMEPAD("style 1")
+	frame()
+	check(G.settings.style == 1, "by number too")
+	clear()
+	SlashCmdList.GAMEPAD("style plaid")
+	frame()
+	check(G.settings.style == 1 and called("say"), "an unknown style says what there is")
+	SlashCmdList.GAMEPAD("style wow")
+	frame()
 end
 
 -- ---- an addon replaced a function before we loaded ------------------------------------------------------------

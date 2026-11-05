@@ -9,6 +9,7 @@ local DEFAULTS = {
 	cursor = 1000,
 	invert = 0,        -- 1 flips the camera's up and down
 	hud = 1,
+	style = 0,         -- the cross: 0 WoW Forever's, 1 a cross hotbar (lua/hud.lua)
 	autotarget = 1,    -- a harmful spell with no enemy targeted picks the nearest one first
 	autocursor = 1,    -- windows that open take the cursor to their first button
 	rumble = 1,
@@ -221,6 +222,21 @@ function G.Command(text)
 		-- Not saved: the addon says it again after a reload.
 		G.ownBars = value == "1"
 		G.Fire("settings", "ownbars")
+	elseif key == "style" or key == "setstyle" then
+		-- By name or number. setstyle comes from C_Controller.SetStyle and says nothing.
+		value = string.lower(value)
+		local number = tonumber(value)
+		for index, name in pairs(G.STYLES or {}) do
+			if name == value then number = index end
+		end
+		if number and G.STYLES and G.STYLES[number] then
+			G.settings.style = number
+			G.SaveSettings()
+			G.Fire("settings", "style")
+			if key == "style" then say("the cross is now " .. G.STYLES[number] .. ".") end
+		elseif key == "style" then
+			say("/controller style wow | xiv")
+		end
 	elseif DEFAULTS[key] and key ~= "enabled" and tonumber(value) then
 		G.settings[key] = tonumber(value)
 		G.SaveSettings()
@@ -228,7 +244,7 @@ function G.Command(text)
 		say(key .. " is now " .. value .. ".")
 	else
 		say(G.connected and ("using " .. tostring(N.Name()) .. ".") or "no controller found.")
-		say("/controller on | off | camera 900 | cursor 1000 | invert 0-1 | hud 0-1 | autotarget 0-1 | autocursor 0-1 | rumble 0-1 | hold 0-1")
+		say("/controller on | off | camera 900 | cursor 1000 | invert 0-1 | hud 0-1 | style wow/xiv | autotarget 0-1 | autocursor 0-1 | rumble 0-1 | hold 0-1")
 	end
 end
 
