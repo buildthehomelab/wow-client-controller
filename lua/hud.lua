@@ -13,6 +13,7 @@ hud:SetSize(CLUSTER_GAP * 2 + SPACING * 2, SPACING * 3)
 hud:SetPoint("BOTTOM", 0, 150)
 hud:SetFrameStrata("MEDIUM")
 hud:Hide()
+G.hudFrame = hud
 
 local function SetGlyph(texture, button)
 	local set = Atlas[G.family] or Atlas.ltr
@@ -157,7 +158,7 @@ local function Paint()
 end
 
 local function Refresh()
-	if G.active and G.settings.hud == 1 and G.mode == "world" then
+	if G.active and G.settings.hud == 1 and not G.ownBars and G.mode == "world" then
 		hud:Show()
 		Paint()
 	else

@@ -53,6 +53,21 @@ way under other names (LuxVelum's `version.dll`, AwesomeWotlk's `dinput8.dll`).
 
 `Logs\Controller.log` says what it found. The button art unpacks itself to `Interface\GamePad` on first start.
 
+## For addon authors
+
+An action bar addon can show the controller's buttons on its own bars through `C_Controller`. It's created after
+addons load, so look it up when you need it, not at load time. It's read only, apart from two requests.
+
+| Function | Returns or does |
+| --- | --- |
+| `C_Controller.GetState()` | `connected, active, family, layer, mode`. `active` means in use: a button pressed since it was plugged in or last rested. `family` is `"ltr"` (Xbox), `"shp"` (PlayStation), `"rev"` (Nintendo) or `"gen"`. `layer` is the triggers held: `"BASE"`, `"LT"`, `"RT"` or `"BOTH"`. `mode` is `"world"`, `"cursor"` or `"aim"` |
+| `C_Controller.GetBinding(bar, slot)` | The button (`"EAST"`, `"UP"`...) and layer that use slot 1-12 of bar `"main"`, `"bottomleft"` or `"bottomright"`. Nothing for an unused slot |
+| `C_Controller.GetGlyph(button)` | Texture path and `left, right, top, bottom` coordinates of a button's picture for the controller in use |
+| `C_Controller.Rest()` | Back to keyboard and mouse until the next controller button press |
+| `C_Controller.SetBarsShown(true)` | Your bars show the abilities, so the controller hides its own cross. Lasts until a UI reload |
+
+Poll `GetState` from your own `OnUpdate`. The controller never calls into an addon.
+
 ## How it works
 
 - **Loading.** `Wow.exe` imports `msacm32.dll`, and Windows looks next to the exe first. `src/proxy.c` forwards all its
@@ -66,7 +81,8 @@ way under other names (LuxVelum's `version.dll`, AwesomeWotlk's `dinput8.dll`).
   client's code, not an addon. That's what lets it move, cast and target, in combat too.
 - **Out of addons' reach.** The files get the native functions and a shared table as arguments, so there are no globals
   for an addon to find, and the frame function sits in the Lua registry rather than on a frame, where `EnumerateFrames`
-  and `GetScript` would hand it out. The `/controller` command is the one thing visible, and all it can do is pass text.
+  and `GetScript` would hand it out. The `/controller` command and `C_Controller` are the only things visible. They
+  return plain values or pass text, never the controller's own tables or functions.
 - **Taint.** Reading anything an addon has touched taints running code. So each frame starts clean, and each protected
   call runs clean with its arguments cleaned (`l_call` in `src/main.c`). That only works during the frame function, so
   nothing can use it from anywhere else. A slash command, which can arrive through addon-tainted chat code, passes as text
